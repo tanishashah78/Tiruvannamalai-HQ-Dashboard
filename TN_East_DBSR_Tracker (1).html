@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TN East · DBSR Performance Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --pink:#E72388;
+    --pink-dark:#B8156A;
+    --pink-tint:#FDEAF4;
+    --slate:#7B848E;
+    --slate-dark:#4B525A;
+    --ink:#1B1B22;
+    --paper:#FAF8F6;
+    --card:#FFFFFF;
+    --line:#EAE6E2;
+    --good:#1F8A5F;
+    --good-tint:#E7F5EE;
+    --warn:#C67A0A;
+    --warn-tint:#FBF0DE;
+    --bad:#C6362E;
+    --bad-tint:#FBE9E7;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* ---------- Header ---------- */
+  header.top{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    padding-bottom:20px;margin-bottom:22px;border-bottom:2px solid var(--ink);
+    gap:16px;flex-wrap:wrap;
+  }
+  .brandmark{display:flex;align-items:center;gap:12px;}
+  .rmark{
+    width:38px;height:38px;border-radius:50%;
+    background:conic-gradient(from 220deg, var(--pink), #ff7fb8, var(--pink));
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:800;font-size:18px;flex-shrink:0;
+  }
+  h1{font-size:22px;margin:0;letter-spacing:-0.02em;font-weight:800;}
+  .subtitle{color:var(--slate-dark);font-size:13px;margin-top:2px;}
+  .territory-chip{
+    font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;
+    background:var(--ink);color:#fff;padding:6px 12px;border-radius:20px;font-weight:600;
+  }
+
+  /* ---------- Tabs ---------- */
+  nav.tabs{
+    display:flex;gap:4px;overflow-x:auto;margin-bottom:24px;
+    border-bottom:1px solid var(--line);padding-bottom:0;
+  }
+  nav.tabs button{
+    background:none;border:none;padding:10px 14px;font-size:13.5px;font-weight:600;
+    color:var(--slate-dark);cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;
+    margin-bottom:-1px;font-family:inherit;
+  }
+  nav.tabs button.active{color:var(--pink-dark);border-bottom-color:var(--pink);}
+  nav.tabs button:hover:not(.active){color:var(--ink);}
+
+  /* ---------- Cards / layout ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:18px;
+  }
+  .card h3{margin:0 0 2px;font-size:15.5px;font-weight:700;}
+  .card .code{color:var(--slate);font-size:11.5px;font-family:ui-monospace,Menlo,monospace;}
+  .metric-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13px;}
+  .metric-row:first-of-type{border-top:none;margin-top:10px;}
+  .metric-row .label{color:var(--slate-dark);}
+  .metric-row .val{font-weight:700;font-variant-numeric:tabular-nums;}
+  .pct-pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;}
+  .pct-good{background:var(--good-tint);color:var(--good);}
+  .pct-warn{background:var(--warn-tint);color:var(--warn);}
+  .pct-bad{background:var(--bad-tint);color:var(--bad);}
+  .bar-track{height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:8px;}
+  .bar-fill{height:100%;background:var(--pink);border-radius:4px;}
+
+  /* ---------- Upload zone ---------- */
+  .upload-zone{
+    border:2px dashed var(--slate);border-radius:16px;padding:26px;text-align:center;
+    background:var(--card);margin-bottom:22px;cursor:pointer;transition:.15s;
+  }
+  .upload-zone.drag{border-color:var(--pink);background:var(--pink-tint);}
+  .upload-zone strong{font-size:15px;}
+  .upload-zone p{color:var(--slate-dark);font-size:13px;margin:6px 0 0;}
+  input[type=file]{display:none;}
+
+  .source-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:24px;}
+  .source-card{
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--card);
+    display:flex;flex-direction:column;gap:4px;
+  }
+  .source-card .name{font-weight:700;font-size:13px;}
+  .source-card .status{font-size:11.5px;display:flex;align-items:center;gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .dot.on{background:var(--good);}
+  .dot.off{background:#D9D4CE;}
+  .source-card .meta{font-size:11px;color:var(--slate);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{
+    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--slate);padding:8px 10px;border-bottom:2px solid var(--ink);white-space:nowrap;
+  }
+  td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums;}
+  tr:hover td{background:#FBF9F7;}
+  .tbl-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;}
+  .db-group-row td{background:var(--pink-tint);font-weight:700;color:var(--pink-dark);border-bottom:1px solid #F3C9E0;}
+
+  .section-title{font-size:16px;font-weight:800;margin:26px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-title .hint{font-weight:500;font-size:12px;color:var(--slate);}
+
+  .empty-state{
+    text-align:center;padding:50px 20px;color:var(--slate-dark);
+    background:var(--card);border:1px dashed var(--line);border-radius:14px;
+  }
+
+  .mapping-toggle{
+    font-size:12px;color:var(--slate-dark);cursor:pointer;text-decoration:underline;
+    text-underline-offset:2px;background:none;border:none;font-family:inherit;padding:0;margin-top:2px;
+  }
+  .mapping-panel{
+    display:none;font-size:12.5px;color:var(--slate-dark);background:var(--card);
+    border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0 24px;line-height:1.6;
+  }
+  .mapping-panel.show{display:block;}
+  .mapping-panel code{background:var(--paper);padding:1px 5px;border-radius:4px;font-size:11.5px;}
+
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:11px 20px;border-radius:30px;font-size:13px;
+    box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:.25s;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:22px;}
+  .kpi{background:var(--ink);color:#fff;border-radius:14px;padding:16px 18px;}
+  .kpi .num{font-size:24px;font-weight:800;letter-spacing:-.01em;}
+  .kpi .lbl{font-size:11.5px;color:#C9C6D6;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+  .kpi.pink{background:var(--pink);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="brandmark">
+      <div class="rmark">R</div>
+      <div>
+        <h1>DBSR &amp; Distributor Tracker</h1>
+        <div class="subtitle">Tiruvannamalai HQ · Zone 2 · ASM_EAST TN</div>
+      </div>
+    </div>
+    <div class="territory-chip" id="lastRefreshChip">No files uploaded yet</div>
+  </header>
+
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="fileInput" multiple accept=".xlsx,.xlsb,.xls,.csv">
+    <strong>Drop today's files here — or click to browse</strong>
+    <p>Sales Flash · Assortment Ivy · Zone 2 DB &amp; DBSR IMS · Badshah Category Tracker · Unvisited OL's Tracker · Detail Transaction Report (CSV) · Geo Eco &amp; HHT</p>
+  </div>
+
+  <div class="source-list" id="sourceList"></div>
+
+  <nav class="tabs" id="tabs"></nav>
+  <div id="tabContent"></div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// Reference / seed data — extracted from Tanisha's own tracker.
+// Edit DISTRIBUTORS / DBSR_ROUTES / IMS_TARGETS here if her territory or
+// monthly IMS targets change; daily uploads only refresh the *actuals*.
+
+const DISTRIBUTORS = [{"code": 1000086238, "name": "R R AGENCY", "stc": 24.24, "tdr": 28.6032}, {"code": 1000091411, "name": "J P TRADERS", "stc": 10.1, "tdr": 11.918}, {"code": 1000091534, "name": "M. A. TRADERS", "stc": 9.09, "tdr": 10.7262}, {"code": 1000092315, "name": "Ashok Agencies", "stc": 10.1, "tdr": 11.918}, {"code": 1000092320, "name": "Dharshini Agencies", "stc": 12.12, "tdr": 14.3016}, {"code": 1000094240, "name": "Firstwings Pharma", "stc": 2.0, "tdr": 2.36}];
+
+const DBSR_ROUTES = [{"route": "W79900020", "name": "Ravi Kumar", "dbCode": 1000086238}, {"route": "W79901786", "name": "VIMAL", "dbCode": 1000086238}, {"route": "AA0000001", "name": "BASKAR .S", "dbCode": 1000091411}, {"route": "AA00000014", "name": "HAJJI MOHAMED K", "dbCode": 1000091534}, {"route": "AA0000106", "name": "DEVA", "dbCode": 1000092315}, {"route": "AA0000107", "name": "VIJAYAKUMAR K", "dbCode": 1000092320}];
+
+// Monthly TDR IMS target per DBSR route (from tracker's IMS "Original Target").
+// "Our Target" (the stretch target shown in her tracker) = this x 1.10
+const IMS_TARGETS = {"W79900020": 12.24, "AA0000001": 12.04, "AA00000014": 10.65, "W79901786": 16.65, "AA0000106": 11.94, "AA0000107": 14.44};
+
+// Program (Detail Transaction Report) outlet master list, seeded from her
+// tracker's Program sheet. New Outlet Code is the join key against the
+// daily Detail Transaction Report's "Customer Code" column.
+const PROGRAM_OUTLETS = [{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_V00005","outletName":"VEERABATUIRA STORES","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":66341.79},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_K00021","outletName":"SRRI KUMARS SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Large","target":54938.53},{"town":"VILUPPURAM","dbCode":1000092320,"dbName":"DHARSHINI AGENCIES","outletCode":"RET_WB_60912","outletName":"?SRI VENKATESWARA SUPER SHIPPING?","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"VIJAYAKUMAR K","segmentation":"LARGE","target":3824.86},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"RET_WB_10292","outletName":"A ONE MART","postType":"Self Select ToT Outlet","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":678631.7},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9752538078","outletName":"DHANAPAL STORES","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":147084.88},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_R00020","outletName":"RAVLA SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":83967.33},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_L00004","outletName":"LAKSHMI MALIGAI","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":83049.56},{"town":"TIRUVANNAMALAI","dbCode":1000091411,"dbName":"J P TRADERS","outletCode":"IV0000000001561","outletName":"R V V HYPER STORE","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"BASKAR .S","segmentation":"Large","target":193456.38},{"town":"TIRUVANNAMALAI","dbCode":1000091411,"dbName":"J P TRADERS","outletCode":"IV0000000001634","outletName":"SS MART","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"BASKAR .S","segmentation":"Large","target":161167.66},{"town":"TIRUVANNAMALAI","dbCode":1000091411,"dbName":"J P TRADERS","outletCode":"IV0000000001553","outletName":"SRI VAARI HYPER MARKER","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"BASKAR .S","segmentation":"Large","target":79919.23},{"town":"TIRUVANNAMALAI","dbCode":1000091411,"dbName":"J P TRADERS","outletCode":"IV0000000001566","outletName":"?R R SUPER MARKET?","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"BASKAR .S","segmentation":"LARGE","target":28620.31},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_S00026","outletName":"M SIVASUBRAMANIAN SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":62369.24},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CTSR180919036","outletName":"PANNEER  COVERINGS","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":45149.92},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_G00008","outletName":"G S M SUPER MARKET","postType":"Vision Lite","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":36873.45},{"town":"TIRUVANNAMALAI","dbCode":1000091411,"dbName":"J P TRADERS","outletCode":"IV0000000001552","outletName":"?NATIONAL SUPER MARKET?","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"BASKAR .S","segmentation":"LARGE","target":63877.71},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_A00052","outletName":"ARUNACHALAM HOTELS PVTLTD","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":31921.28},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9876597249","outletName":"SRRI KUMAR'S SUPER MARKET","postType":"Self Select ToT Outlet","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":54266.46},{"town":"VILLUPURAM","dbCode":1000092315,"dbName":"Ashok Agencies","outletCode":"IV0000000007432","outletName":"?SRI VELAVAN SUPER MARKET?","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"DEVA","segmentation":"MEDIUM","target":44094.7},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_S00055","outletName":"SRI KUILMOZHI STORE","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":54549.69},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_N00013","outletName":"NEW POOMPUKAR SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":54093.2},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT8059004519","outletName":"SRI LAKSHMI SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":34495.13},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_K00012","outletName":"KANMANI MEDICALS","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":31615.29},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_S00103","outletName":"SREE BHAVANI AGENCIES","postType":"Vision Lite","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":33141.79},{"town":"TIRUVANNAMALAI","dbCode":1000091534,"dbName":"M. A. TRADERS","outletCode":"IV0000000003082","outletName":"?CPR SUPER MARKET?","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"HAJJI MOHAMED K","segmentation":"MEDIUM","target":14348.54},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_A00024","outletName":"ARUNA   CO","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":21508.53},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_T00008","outletName":"T P SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":19718.16},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CTSR180919042","outletName":"EPIC SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":36685.34},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9752573616","outletName":"NEW ABK HYPER MART","postType":"Vision Lite","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":17147.91},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_G00018","outletName":"GOLDEN SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":20350.53},{"town":"VILLUPURAM","dbCode":1000092315,"dbName":"Ashok Agencies","outletCode":"IV0000000007441","outletName":"?Sru Durga super market?","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"DEVA","segmentation":"MEDIUM","target":23265.76},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9752468477","outletName":"ZAM ZAM SUPER MARKET","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"Ravi Kumar","segmentation":"MEDIUM","target":16323.57},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9876626439","outletName":"PANNEER GOLD COVERING & SUPER MARKET","postType":"Vision Lite","kyc":"KYC Pending","routeName":"VIMAL","segmentation":"Large","target":18504.2},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9752473326","outletName":"55 MART SUPER MARKET","postType":"Vision Lite","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Large","target":14719.07},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_J00003","outletName":"JAYANTHI STORES","postType":"Vision Lite","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":14469.75},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_E00002","outletName":"ESWARI MALIGAI","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":20147.02},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9876601435","outletName":"THIRUPUGAL STORE","postType":"Self Select ToT Outlet","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":12477.74},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_A00061","outletName":"ARS SUPER MARKET","postType":"Vision Lite","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Large","target":17912.89},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CTSR180919045","outletName":"A B N SUPER MARKET","postType":"Vision Lite","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":14657.47},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_A00057","outletName":"ASHMATH STORE","postType":"Vision Lite","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":13118.8},{"town":"TIRUVANNAMALAI","dbCode":1000091534,"dbName":"M. A. TRADERS","outletCode":"RET_WB_34504","outletName":"?SUN SUPER MARKET?","postType":"Self Select ToT Outlet","kyc":"KYC Pending","routeName":"HAJJI MOHAMED K","segmentation":"MEDIUM","target":8485.37},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_V00014","outletName":"vasanthsri medicals","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":10968.31},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_P00025","outletName":"P V S PROVISIONS","postType":"Vision Lite","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":11837.1},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_S00106","outletName":"SIVA STORE","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":10213.63},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_R00008","outletName":"RAMANA SUPER MARKET","postType":"Vision Grocery","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":8893.63},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_P00008","outletName":"PARVATHI MEDICALS","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":8577.55},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9876636024","outletName":"RAVLA SHOPPING MALL","postType":"Self Select ToT Outlet","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":9431.16},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9876567195","outletName":"SUPER MEDICALS","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":9346.62},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_A00006","outletName":"ALAGU PHARMACY","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":9180.02},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_M00004","outletName":"MAHARAJA MEDICALS","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":8424.18},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"CT9752562882","outletName":"A S P TRADERS","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":9086.88},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_P00016","outletName":"P K G S","postType":"Vision Lite","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":8330.53},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_S00044","outletName":"SIVA MALIGAI","postType":"Vision Lite","kyc":"KYC Completed","routeName":"Ravi Kumar","segmentation":"Medium","target":9397.32},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_M00011","outletName":"MOTHER MEDICALS","postType":"Vision Pharmacy","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":5806.09},{"town":"TIRUVANNAMALAI","dbCode":1000086238,"dbName":"R R AGENCY","outletCode":"4136140_P00010","outletName":"POOMBUKAR SUPER MARKET","postType":"Vision Lite","kyc":"KYC Completed","routeName":"VIMAL","segmentation":"Medium","target":985.81}];
+
+const DB_BY_CODE = Object.fromEntries(DISTRIBUTORS.map(d => [d.code, d]));
+const ROUTE_BY_CODE = Object.fromEntries(DBSR_ROUTES.map(r => [r.route, r]));
+const KNOWN_DB_CODES = new Set(DISTRIBUTORS.map(d => d.code));
+
+
+// ---------------------------------------------------------------------
+// Generic helpers
+// ---------------------------------------------------------------------
+
+function normCode(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) ? Math.round(n) : String(v).trim();
+}
+
+function sheetToAOA(ws) {
+  return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+}
+
+// Find the row index whose cells contain ALL of `mustHave` header strings
+// (case-insensitive, trimmed, substring match against stringified cell).
+function findHeaderRow(aoa, mustHave, scanLimit) {
+  const limit = Math.min(aoa.length, scanLimit || 25);
+  for (let i = 0; i < limit; i++) {
+    const row = aoa[i] || [];
+    const cells = row.map(c => (c === null || c === undefined ? '' : String(c).trim().toLowerCase()));
+    const ok = mustHave.every(h => cells.some(c => c === h.toLowerCase() || c.includes(h.toLowerCase())));
+    if (ok) return i;
+  }
+  return -1;
+}
+
+function colIndex(headerRow, name, exact) {
+  const target = name.toLowerCase();
+  for (let i = 0; i < headerRow.length; i++) {
+    const c = headerRow[i];
+    if (c === null || c === undefined) continue;
+    const s = String(c).trim().toLowerCase();
+    if (exact ? s === target : s.includes(target)) return i;
+  }
+  return -1;
+}
+
+function pickSheet(wb, candidates) {
+  for (const name of candidates) {
+    const found = wb.SheetNames.find(n => n.toLowerCase().trim() === name.toLowerCase().trim());
+    if (found) return wb.Sheets[found];
+  }
+  // fallback: substring match
+  for (const name of candidates) {
+    const found = wb.SheetNames.find(n => n.toLowerCase().includes(name.toLowerCase()));
+    if (found) return wb.Sheets[found];
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------
+// 1. Sales Flash -> SHIP metrics (per distributor)
+// ---------------------------------------------------------------------
+function parseSalesFlash(wb) {
+  const ws = pickSheet(wb, ['DB Summary']);
+  if (!ws) throw new Error('Could not find "DB Summary" sheet in Sales Flash file');
+  const aoa = sheetToAOA(ws);
+  const hIdx = findHeaderRow(aoa, ['Health Code', 'Distributor Name', 'Total Bud']);
+  if (hIdx === -1) throw new Error('Could not locate header row in Sales Flash DB Summary');
+  const header = aoa[hIdx];
+  const cCode = colIndex(header, 'Health Code', true);
+  const cName = colIndex(header, 'Distributor Name', true);
+  // First "Total Bud" block after the identity columns is the overall RB group
+  const cTotalBud = header.findIndex((h, i) => i > cName && String(h).trim().toLowerCase() === 'total bud');
+  const cShip = colIndex(header.slice(cTotalBud), 'Ship', true) + cTotalBud;
+  const cPickVal = colIndex(header.slice(cTotalBud), 'Pick Val', true) + cTotalBud;
+  const cShipPL = colIndex(header.slice(cTotalBud), 'Ship + PL', true) + cTotalBud;
+  const cAch = colIndex(header.slice(cTotalBud), 'Ach %', true) + cTotalBud;
+  const cBtg = colIndex(header.slice(cTotalBud), 'BTG', true) + cTotalBud;
+  const cImsDelta = colIndex(header.slice(cTotalBud), 'IMS Delta vs LD', true) + cTotalBud;
+  const cPbiIms = colIndex(header.slice(cTotalBud), 'PBI IMS', true) + cTotalBud;
+
+  const records = [];
+  for (let r = hIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const code = normCode(row[cCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    records.push({
+      dbCode: code,
+      dbName: row[cName],
+      totalBud: row[cTotalBud] ?? 0,
+      ship: row[cShip] ?? 0,
+      pickVal: row[cPickVal] ?? 0,
+      shipPL: row[cShipPL] ?? 0,
+      achPct: row[cAch] ?? 0,
+      btg: row[cBtg] ?? 0,
+      imsDelta: row[cImsDelta] ?? 0,
+      pbiIms: row[cPbiIms] ?? 0,
+    });
+  }
+  return records;
+}
+
+// ---------------------------------------------------------------------
+// 2. Assortment Ivy -> DB Lines (DB sheet) + SR Lines (DBSR sheet)
+// ---------------------------------------------------------------------
+function parseIvyDB(wb) {
+  const ws = pickSheet(wb, ['DB']);
+  if (!ws) throw new Error('Could not find "DB" sheet in Assortment Ivy file');
+  const aoa = sheetToAOA(ws);
+  const hIdx = findHeaderRow(aoa, ['DIST_CD', 'DB Name']);
+  if (hIdx === -1) throw new Error('Could not locate header row in Ivy DB sheet');
+  const header = aoa[hIdx];
+  const cCode = colIndex(header, 'DIST_CD', true);
+  const cName = colIndex(header, 'DB Name', true);
+  const cMtdUlsn = colIndex(header, 'MTD ULSN', true);
+  const cUlsnTgt = colIndex(header, 'ULSN Target', true);
+  const cUlsAchNoQty = colIndex(header, 'ULS Ach (w/o Qty)', true);
+  const cUlsnAchQty = colIndex(header, 'ULSN Ach (with Qty)', true);
+  const cPctTgtAch = colIndex(header, '%ULSN Tgt Ach', true);
+  const cTarget = colIndex(header, 'Target', true);
+  const cAchNoSoq = colIndex(header, 'Ach without SOQ', true);
+  const cAchSoq = colIndex(header, 'Ach with SOQ', true);
+  const cAchPctSoq = colIndex(header, 'Ach % with SOQ', true);
+
+  const records = [];
+  for (let r = hIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const code = normCode(row[cCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    records.push({
+      dbCode: code, dbName: row[cName],
+      mtdUlsn: row[cMtdUlsn] ?? 0,
+      ulsnTarget: row[cUlsnTgt] ?? 0,
+      ulsAchNoQty: row[cUlsAchNoQty] ?? 0,
+      ulsnAchQty: row[cUlsnAchQty] ?? 0,
+      pctUlsnTgtAch: row[cPctTgtAch] ?? 0,
+      target: row[cTarget] ?? 0,
+      achNoSoq: row[cAchNoSoq] ?? 0,
+      achSoq: row[cAchSoq] ?? 0,
+      achPctSoq: row[cAchPctSoq] ?? 0,
+    });
+  }
+  return records;
+}
+
+function parseIvyDBSR(wb) {
+  const ws = pickSheet(wb, ['DBSR']);
+  if (!ws) throw new Error('Could not find "DBSR" sheet in Assortment Ivy file');
+  const aoa = sheetToAOA(ws);
+  const hIdx = findHeaderRow(aoa, ['DB Code', 'Route Code', 'ULSN Target']);
+  if (hIdx === -1) throw new Error('Could not locate header row in Ivy DBSR sheet');
+  const header = aoa[hIdx];
+  const cDbCode = colIndex(header, 'DB Code', true);
+  const cRoute = colIndex(header, 'Route Code', true);
+  const cRouteName = colIndex(header, 'Route Name', true);
+  const cUlsnTgt = colIndex(header, 'ULSN Target', true);
+  const cAchNoQty = colIndex(header, 'ULSN Ach (w/o Qty)', true);
+  const cAchQty = colIndex(header, 'ULSN Ach (with Qty)', true);
+  const cPctAch = colIndex(header, 'ULS Tgt Ach  (without qty) (%)', false);
+  const cIncEarn1 = header.findIndex((h,i)=> i>cPctAch && String(h).trim().toLowerCase()==='incentive earned');
+  const cTarget = colIndex(header, 'Target', true);
+  const cAchWoSoq = colIndex(header, 'Ach without SOQ', true);
+  const cAchSoq = colIndex(header, 'Ach with SOQ', true);
+  const cAchPctSoq = colIndex(header, 'Ach % with SOQ', true);
+
+  const records = [];
+  for (let r = hIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const code = normCode(row[cDbCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    const route = row[cRoute] === null || row[cRoute] === undefined ? null : String(row[cRoute]).trim();
+    if (!route || !ROUTE_BY_CODE[route]) continue;
+    records.push({
+      dbCode: code, route, routeName: row[cRouteName],
+      ulsnTarget: row[cUlsnTgt] ?? 0,
+      ulsnAchNoQty: row[cAchNoQty] ?? 0,
+      ulsnAchQty: row[cAchQty] ?? 0,
+      pctUlsnTgtAch: row[cPctAch] ?? 0,
+      target: row[cTarget] ?? 0,
+      achWoSoq: row[cAchWoSoq] ?? 0,
+      achSoq: row[cAchSoq] ?? 0,
+      achPctSoq: row[cAchPctSoq] ?? 0,
+    });
+  }
+  return records;
+}
+
+// ---------------------------------------------------------------------
+// 3. Zone 2 DB & DBSR IMS -> IMS Achieved (per DBSR route)
+// ---------------------------------------------------------------------
+function parseZone2IMS(wb) {
+  const ws = pickSheet(wb, ['DBSR']);
+  if (!ws) throw new Error('Could not find "DBSR" sheet in Zone 2 DB & DBSR IMS file');
+  const aoa = sheetToAOA(ws);
+  const hIdx = findHeaderRow(aoa, ['Distributor Code', 'Route Code', 'Confirmed']);
+  if (hIdx === -1) throw new Error('Could not locate header row in Zone 2 DBSR sheet');
+  const header = aoa[hIdx];
+  const cDbCode = colIndex(header, 'Distributor Code', true);
+  const cRoute = colIndex(header, 'Route Code', true);
+  const cRouteName = colIndex(header, 'Route Name', true);
+  const cTsiHq = colIndex(header, 'TSI HQ', true);
+  // "Confirmed" (MTD Achv total, non geo-tagged-only) is the achieved value
+  const cOpen = colIndex(header, 'Open', true);
+  const cConfirmed = header.findIndex((h,i)=> i>cOpen && String(h).trim().toLowerCase()==='confirmed');
+
+  const records = [];
+  for (let r = hIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const code = normCode(row[cDbCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    const route = row[cRoute] === null || row[cRoute] === undefined ? null : String(row[cRoute]).trim();
+    if (!route || !ROUTE_BY_CODE[route]) continue;
+    records.push({
+      dbCode: code, route, routeName: row[cRouteName],
+      achieved: row[cConfirmed] ?? 0,
+    });
+  }
+  return records;
+}
+
+// ---------------------------------------------------------------------
+// 4. Badshah Category Tracker -> DBSR Wise sheet
+// ---------------------------------------------------------------------
+function parseBadshah(wb) {
+  const ws = pickSheet(wb, ['DBSR Wise']);
+  if (!ws) throw new Error('Could not find "DBSR Wise" sheet in Badshah Category Tracker');
+  const aoa = sheetToAOA(ws);
+  const hIdx = findHeaderRow(aoa, ['Distributor Code', 'Route Code', 'Eco(2pcs)']);
+  if (hIdx === -1) throw new Error('Could not locate header row in Badshah DBSR Wise sheet');
+  const header = aoa[hIdx];
+  const cDbCode = colIndex(header, 'Distributor Code', true);
+  const cDbName = colIndex(header, 'DB Name', true);
+  const cRoute = colIndex(header, 'Route Code', true);
+  const cRouteName = colIndex(header, 'Route Name', true);
+  // Mortein block: ECO Target, ECO Ach, ECO Ach %, Incentive  (first 4 Eco(2pcs) cols after Route Name)
+  const cMorteinTgt = cRouteName + 1;
+  const cMorteinAch = cRouteName + 2;
+  const cMorteinPct = cRouteName + 3;
+  const cMorteinInc = cRouteName + 4;
+  // DKG block: ECO Target, ECO Ach, ECO Ach %, Incentive
+  const cDkgTgt = cRouteName + 5;
+  const cDkgAch = cRouteName + 6;
+  const cDkgPct = cRouteName + 7;
+  const cDkgInc = cRouteName + 8;
+
+  const records = [];
+  for (let r = hIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const code = normCode(row[cDbCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    const route = row[cRoute] === null || row[cRoute] === undefined ? null : String(row[cRoute]).trim();
+    if (!route || !ROUTE_BY_CODE[route]) continue;
+    records.push({
+      dbCode: code, dbName: row[cDbName], route, routeName: row[cRouteName],
+      mortein: { target: row[cMorteinTgt] ?? 0, ach: row[cMorteinAch] ?? 0, pct: row[cMorteinPct] ?? 0, incentive: row[cMorteinInc] ?? 0 },
+      dkg: { target: row[cDkgTgt] ?? 0, ach: row[cDkgAch] ?? 0, pct: row[cDkgPct] ?? 0, incentive: row[cDkgInc] ?? 0 },
+    });
+  }
+  return records;
+}
+
+// ---------------------------------------------------------------------
+// 5. Unvisited OL's Tracker -> OL's Base sheet
+// ---------------------------------------------------------------------
+function parseUnvisited(wb) {
+  const ws = pickSheet(wb, ["OL's Base", 'OLs Base', 'OL Base']);
+  if (!ws) throw new Error("Could not find \"OL's Base\" sheet in Unvisited OL's Tracker");
+  const aoa = sheetToAOA(ws);
+  const hIdx = findHeaderRow(aoa, ['Distributor_Code', 'DBSR_Name']);
+  if (hIdx === -1) throw new Error("Could not locate header row in Unvisited OL's Base sheet");
+  const header = aoa[hIdx];
+  const cDbCode = colIndex(header, 'Distributor_Code', true);
+  const cDbName = colIndex(header, 'Distributor_Name', true);
+  const cRetCode = colIndex(header, 'Retailer_Code', true);
+  const cRetName = colIndex(header, 'Retailer_Name', true);
+  const cDbsrName = colIndex(header, 'DBSR_Name', true);
+  const cTsiHq = colIndex(header, 'TSI HQ', true);
+  // latest-month visit/billing status columns (rightmost "Visit Status" / "Billing Status")
+  let cVisitStatus = -1, cBillStatus = -1;
+  for (let i = 0; i < header.length; i++) {
+    const s = header[i] === null ? '' : String(header[i]).trim().toLowerCase();
+    if (s.includes('visit status')) cVisitStatus = i;
+    if (s.includes('billing status')) cBillStatus = i;
+  }
+
+  const records = [];
+  for (let r = hIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const code = normCode(row[cDbCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    const dbsrName = row[cDbsrName];
+    records.push({
+      dbCode: code, dbName: row[cDbName],
+      retailerCode: row[cRetCode], retailerName: row[cRetName],
+      dbsrName,
+      visitStatus: cVisitStatus >= 0 ? row[cVisitStatus] : null,
+      billStatus: cBillStatus >= 0 ? row[cBillStatus] : null,
+    });
+  }
+  return records;
+}
+
+// ---------------------------------------------------------------------
+// 6. Detail Transaction Report (CSV) -> pivot Customer Code -> Net Amount,
+//    joined against PROGRAM_OUTLETS by New Outlet Code
+// ---------------------------------------------------------------------
+function parseDetailTransactionCSV(text) {
+  // header sits on the 3rd physical line ("Distributor Code,Distributor Name,...")
+  const lines = text.split(/\r?\n/);
+  let headerLineIdx = lines.findIndex(l => l.startsWith('Distributor Code,'));
+  if (headerLineIdx === -1) headerLineIdx = 0;
+  const csvBody = lines.slice(headerLineIdx).join('\n');
+  const wb = XLSX.read(csvBody, { type: 'string', raw: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const aoa = sheetToAOA(ws);
+  const header = aoa[0];
+  const cDbCode = colIndex(header, 'Distributor Code', true);
+  const cCustCode = colIndex(header, 'Customer Code', true);
+  const cNetAmt = colIndex(header, 'Net Amount', true);
+
+  const pivot = {}; // outletCode -> summed net amount
+  for (let r = 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row || row.length < 2) continue;
+    const code = normCode(row[cDbCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    const custCode = row[cCustCode] === null || row[cCustCode] === undefined ? null : String(row[cCustCode]).trim();
+    if (!custCode) continue;
+    const amt = parseFloat(row[cNetAmt]) || 0;
+    pivot[custCode] = (pivot[custCode] || 0) + amt;
+  }
+
+  // Join against the Program outlet master list
+  return PROGRAM_OUTLETS.map(o => {
+    const achievement = pivot[o.outletCode] || 0;
+    const achPct = o.target ? achievement / o.target : 0;
+    return { ...o, achievement, achPct, btg: (o.target || 0) - achievement };
+  });
+}
+
+// ---------------------------------------------------------------------
+// 7. Geo Eco & HHT file -> DBSR sheet, matched on Distributor Code + Route Code
+// ---------------------------------------------------------------------
+function parseGeoEco(wb) {
+  const ws = pickSheet(wb, ['DBSR']);
+  if (!ws) throw new Error('Could not find "DBSR" sheet in Geo Eco & HHT file');
+  const aoa = sheetToAOA(ws);
+  const hIdx = findHeaderRow(aoa, ['Distributor Code', 'Route Code', 'Geotagged OMR']);
+  if (hIdx === -1) throw new Error('Could not locate header row in Geo Eco DBSR sheet');
+  const header = aoa[hIdx];
+  const cDbCode = colIndex(header, 'Distributor Code', true);
+  const cDbName = colIndex(header, 'DB Name', true);
+  const cRoute = colIndex(header, 'Route Code', true);
+  const cRouteName = colIndex(header, 'Route Name', true);
+  const cOmr = colIndex(header, 'Geotagged OMR', true);
+  const cGeoTagAchv = colIndex(header, 'MTD Geo Tag Achv', false);
+  const cHitRate = colIndex(header, 'Geo Tag Hit Rate', false);
+  const cOverAllEco = colIndex(header, 'Over All MTD Eco', true);
+  const cEcoGt0 = colIndex(header, 'MTD Geo Fence Eco >0', false);
+  const cPrevEco = colIndex(header, 'FM GF Eco', false);
+  const cEcoGe800 = colIndex(header, 'MTD Geo Fence Eco >=800', false);
+  const cGapVsLmtd = colIndex(header, 'Gap Eco vs LMTD', true);
+  const cGrVsLmtd = colIndex(header, 'Gr % vs LMTD', true);
+  const cEcoAchPct = colIndex(header, 'GF Eco Achv%(>=800)', false);
+  const cDaysEarned = colIndex(header, '# of Days Earned', false);
+  const cGfBcPct = colIndex(header, 'Geo Fence BC', false);
+  const cHhtDays = colIndex(header, 'HHT Achv Days', false);
+  const cOlVisited = colIndex(header, "Unique OL's GF Visited", false);
+  const cGfVisitTotal = colIndex(header, 'Geo Fence Visit Total', true);
+  const cAvgGfVisit = colIndex(header, 'Avg GF Visit', true);
+  const cGfBcTotal = colIndex(header, 'Geo Fence BC Total', true);
+  const cAvgGfBc = colIndex(header, 'Avg GF BC', true);
+  const cCftDay = colIndex(header, 'Avg CFT/Day', false);
+  const cCftOrder = colIndex(header, 'Avg CFT/Order', false);
+  const cOlBilled = colIndex(header, "Ol's Billed", true);
+  const cNonGeoSales = colIndex(header, 'Non Geo Tagged Sales', false);
+
+  const records = [];
+  for (let r = hIdx + 1; r < aoa.length; r++) {
+    const row = aoa[r];
+    if (!row) continue;
+    const code = normCode(row[cDbCode]);
+    if (!KNOWN_DB_CODES.has(code)) continue;
+    const route = row[cRoute] === null || row[cRoute] === undefined ? null : String(row[cRoute]).trim();
+    if (!route || !ROUTE_BY_CODE[route]) continue;
+    records.push({
+      dbCode: code, dbName: row[cDbName], route, routeName: row[cRouteName],
+      omr: row[cOmr] ?? 0,
+      geoTagAchv: cGeoTagAchv >= 0 ? row[cGeoTagAchv] ?? 0 : 0,
+      hitRate: cHitRate >= 0 ? row[cHitRate] ?? 0 : 0,
+      overAllEco: row[cOverAllEco] ?? 0,
+      ecoGt0: cEcoGt0 >= 0 ? row[cEcoGt0] ?? 0 : 0,
+      prevMonthEco: cPrevEco >= 0 ? row[cPrevEco] ?? 0 : 0,
+      ecoGe800: cEcoGe800 >= 0 ? row[cEcoGe800] ?? 0 : 0,
+      gapVsLmtd: row[cGapVsLmtd] ?? 0,
+      grVsLmtd: row[cGrVsLmtd] ?? 0,
+      ecoAchPct: cEcoAchPct >= 0 ? row[cEcoAchPct] ?? 0 : 0,
+      daysEarned: cDaysEarned >= 0 ? row[cDaysEarned] ?? 0 : 0,
+      gfBcPct: cGfBcPct >= 0 ? row[cGfBcPct] ?? 0 : 0,
+      hhtDays: cHhtDays >= 0 ? row[cHhtDays] ?? 0 : 0,
+      olVisited: cOlVisited >= 0 ? row[cOlVisited] ?? 0 : 0,
+      gfVisitTotal: row[cGfVisitTotal] ?? 0,
+      avgGfVisit: row[cAvgGfVisit] ?? 0,
+      gfBcTotal: row[cGfBcTotal] ?? 0,
+      avgGfBc: row[cAvgGfBc] ?? 0,
+      cftDay: cCftDay >= 0 ? row[cCftDay] ?? 0 : 0,
+      cftOrder: cCftOrder >= 0 ? row[cCftOrder] ?? 0 : 0,
+      olBilled: row[cOlBilled] ?? 0,
+      nonGeoSales: cNonGeoSales >= 0 ? row[cNonGeoSales] ?? 0 : 0,
+    });
+  }
+  return records;
+}
+
+// ---------------------------------------------------------------------
+// File type auto-detection
+// ---------------------------------------------------------------------
+function detectFileType(fileName) {
+  const n = fileName.toLowerCase();
+  if (n.endsWith('.csv') || n.includes('detail transaction') || n.includes('transaction report')) return 'program';
+  if (n.includes('sales flash')) return 'salesflash';
+  if (n.includes('badshah')) return 'badshah';
+  if (n.includes('ivy') || n.includes('assortment')) return 'ivy';
+  if (n.includes('unvisited') || n.includes('unvisted')) return 'unvisited';
+  if (n.includes('zone') && (n.includes('db') || n.includes('ims'))) return 'zone2';
+  if (n.includes('geo')) return 'geoeco';
+  return 'unknown';
+}
+
+const SOURCE_META = {
+  salesflash:  { label: 'Sales Flash',                 feeds: 'SHIP' },
+  ivy:         { label: 'Assortment Ivy',               feeds: 'DB Lines · SR Lines' },
+  zone2:       { label: 'Zone 2 DB & DBSR IMS',          feeds: 'IMS Achieved' },
+  badshah:     { label: 'Badshah Category Tracker',      feeds: 'Badshah' },
+  unvisited:   { label: "Unvisited OL's Tracker",        feeds: 'Unvisited OL' },
+  program:     { label: 'Detail Transaction Report',     feeds: 'Program' },
+  geoeco:      { label: 'Geo Eco & HHT file',             feeds: 'Geo Eco & HHT' },
+};
+
+
+// ---------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------
+const SOURCE_KEYS = ['salesflash', 'ivy', 'zone2', 'badshah', 'unvisited', 'program', 'geoeco'];
+let STORE = {}; // sourceKey -> { uploadedAt, fileName, ...data }
+let activeTab = 'overview';
+
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'ship', label: 'SHIP' },
+  { id: 'dblines', label: 'DB Lines' },
+  { id: 'ims', label: 'IMS' },
+  { id: 'srlines', label: 'SR Lines' },
+  { id: 'geoeco', label: 'Geo Eco & HHT' },
+  { id: 'badshah', label: 'Badshah' },
+  { id: 'program', label: 'Program' },
+  { id: 'unvisited', label: 'Unvisited OL' },
+];
+
+function fmtNum(n, dp) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  return Number(n).toLocaleString('en-IN', { maximumFractionDigits: dp ?? 2, minimumFractionDigits: 0 });
+}
+function fmtPct(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  return (Number(n) * 100).toFixed(1) + '%';
+}
+function pctClass(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return 'pct-warn';
+  if (n >= 0.85) return 'pct-good';
+  if (n >= 0.5) return 'pct-warn';
+  return 'pct-bad';
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// ---------------------------------------------------------------------
+// Persistence (personal — visible only to Tanisha)
+// ---------------------------------------------------------------------
+async function loadStore() {
+  for (const key of SOURCE_KEYS) {
+    try {
+      const res = await window.storage.get('source:' + key, false);
+      if (res && res.value) STORE[key] = JSON.parse(res.value);
+    } catch (e) { /* not found yet, fine */ }
+  }
+}
+async function saveSource(key, payload) {
+  STORE[key] = payload;
+  try {
+    await window.storage.set('source:' + key, JSON.stringify(payload), false);
+  } catch (e) {
+    console.error('storage save failed', e);
+    showToast('Could not save to persistent storage — data will hold for this session only.');
+  }
+}
+
+// ---------------------------------------------------------------------
+// File ingestion
+// ---------------------------------------------------------------------
+function readFileAsArrayBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsArrayBuffer(file);
+  });
+}
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsText(file);
+  });
+}
+
+async function processFile(file) {
+  const type = detectFileType(file.name);
+  if (type === 'unknown') {
+    showToast(`Couldn't tell what "${file.name}" is — rename it to include Sales Flash / Ivy / Zone 2 / Badshah / Unvisited / Detail Transaction.`);
+    return;
+  }
+  try {
+    if (type === 'program') {
+      const text = await readFileAsText(file);
+      const records = parseDetailTransactionCSV(text);
+      await saveSource('program', { uploadedAt: Date.now(), fileName: file.name, records });
+    } else {
+      const buf = await readFileAsArrayBuffer(file);
+      const sheetFilter = {
+        salesflash: ['DB Summary'],
+        ivy: ['DB', 'DBSR'],
+        zone2: ['DBSR'],
+        badshah: ['DBSR Wise'],
+        unvisited: ["OL's Base"],
+        geoeco: ['DBSR'],
+      }[type];
+      const wb = XLSX.read(buf, { type: 'array', sheets: sheetFilter });
+      if (type === 'salesflash') {
+        const records = parseSalesFlash(wb);
+        await saveSource('salesflash', { uploadedAt: Date.now(), fileName: file.name, records });
+      } else if (type === 'ivy') {
+        const dbRecords = parseIvyDB(wb);
+        const dbsrRecords = parseIvyDBSR(wb);
+        await saveSource('ivy', { uploadedAt: Date.now(), fileName: file.name, dbRecords, dbsrRecords });
+      } else if (type === 'zone2') {
+        const records = parseZone2IMS(wb);
+        await saveSource('zone2', { uploadedAt: Date.now(), fileName: file.name, records });
+      } else if (type === 'badshah') {
+        const records = parseBadshah(wb);
+        await saveSource('badshah', { uploadedAt: Date.now(), fileName: file.name, records });
+      } else if (type === 'unvisited') {
+        const records = parseUnvisited(wb);
+        await saveSource('unvisited', { uploadedAt: Date.now(), fileName: file.name, records });
+      } else if (type === 'geoeco') {
+        const records = parseGeoEco(wb);
+        await saveSource('geoeco', { uploadedAt: Date.now(), fileName: file.name, records });
+      }
+    }
+    showToast(`${SOURCE_META[type].label} updated — feeds ${SOURCE_META[type].feeds}`);
+  } catch (err) {
+    console.error(err);
+    showToast(`Couldn't read "${file.name}": ${err.message}`);
+  }
+  renderAll();
+}
+
+async function handleFiles(fileList) {
+  for (const file of Array.from(fileList)) {
+    await processFile(file);
+  }
+}
+
+// ---------------------------------------------------------------------
+// Rendering: source status strip
+// ---------------------------------------------------------------------
+function renderSourceList() {
+  const el = document.getElementById('sourceList');
+  el.innerHTML = SOURCE_KEYS.map(key => {
+    const meta = SOURCE_META[key];
+    const s = STORE[key];
+    const on = !!s;
+    const when = on ? new Date(s.uploadedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Waiting for upload';
+    return `<div class="source-card">
+      <div class="name">${meta.label}</div>
+      <div class="status"><span class="dot ${on ? 'on' : 'off'}"></span>${on ? 'Up to date' : 'Not uploaded'}</div>
+      <div class="meta">${on ? s.fileName : '—'}</div>
+      <div class="meta">${when}${on ? '' : ''}</div>
+      <div class="meta" style="color:var(--pink-dark);font-weight:600;">feeds ${meta.feeds}</div>
+    </div>`;
+  }).join('');
+
+  const chip = document.getElementById('lastRefreshChip');
+  const times = SOURCE_KEYS.map(k => STORE[k] && STORE[k].uploadedAt).filter(Boolean);
+  if (times.length === 0) {
+    chip.textContent = 'No files uploaded yet';
+  } else {
+    const latest = new Date(Math.max(...times));
+    chip.textContent = 'Last update: ' + latest.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+}
+
+// ---------------------------------------------------------------------
+// Rendering: tabs
+// ---------------------------------------------------------------------
+function renderTabs() {
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = TABS.map(t => `<button data-tab="${t.id}" class="${activeTab === t.id ? 'active' : ''}">${t.label}</button>`).join('');
+  nav.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => { activeTab = btn.dataset.tab; renderTabs(); renderContent(); });
+  });
+}
+
+function lookupHelper(id, dataMap) {
+  return `<button class="mapping-toggle" onclick="document.getElementById('${id}').classList.toggle('show')">How is this calculated?</button>
+  <div class="mapping-panel" id="${id}">${dataMap}</div>`;
+}
+
+function renderContent() {
+  const el = document.getElementById('tabContent');
+  if (activeTab === 'overview') return renderOverview(el);
+  if (activeTab === 'ship') return renderShip(el);
+  if (activeTab === 'dblines') return renderDBLines(el);
+  if (activeTab === 'ims') return renderIMS(el);
+  if (activeTab === 'srlines') return renderSRLines(el);
+  if (activeTab === 'geoeco') return renderGeoEco(el);
+  if (activeTab === 'badshah') return renderBadshah(el);
+  if (activeTab === 'program') return renderProgram(el);
+  if (activeTab === 'unvisited') return renderUnvisited(el);
+}
+
+function emptyState(msg) {
+  return `<div class="empty-state">${msg}</div>`;
+}
+
+// ---------- Overview ----------
+function renderOverview(el) {
+  const ship = STORE.salesflash?.records || [];
+  const ims = STORE.zone2?.records || [];
+  const totalShipPL = ship.reduce((s, r) => s + (r.shipPL || 0), 0);
+  const totalBud = ship.reduce((s, r) => s + (r.totalBud || 0), 0);
+  const totalImsAch = ims.reduce((s, r) => s + (r.achieved || 0), 0);
+  const totalImsTgt = Object.values(IMS_TARGETS).reduce((a, b) => a + b, 0);
+
+  const kpiHtml = `<div class="kpi-row">
+    <div class="kpi pink"><div class="num">${fmtNum(totalShipPL)}</div><div class="lbl">Territory Ship+PL (STC)</div></div>
+    <div class="kpi"><div class="num">${totalBud ? fmtPct(totalShipPL / totalBud) : '—'}</div><div class="lbl">Ship Ach vs Budget</div></div>
+    <div class="kpi"><div class="num">${fmtNum(totalImsAch)}</div><div class="lbl">Territory IMS Achieved</div></div>
+    <div class="kpi"><div class="num">${totalImsTgt ? fmtPct(totalImsAch / totalImsTgt) : '—'}</div><div class="lbl">IMS Ach vs Target</div></div>
+  </div>`;
+
+  const cards = DISTRIBUTORS.map(d => {
+    const s = ship.find(r => r.dbCode === d.code);
+    const routes = DBSR_ROUTES.filter(r => r.dbCode === d.code);
+    const dbImsAch = routes.reduce((sum, r) => {
+      const rec = ims.find(x => x.route === r.route);
+      return sum + (rec ? rec.achieved : 0);
+    }, 0);
+    const dbImsTgt = routes.reduce((sum, r) => sum + (IMS_TARGETS[r.route] || 0), 0);
+    return `<div class="card">
+      <h3>${d.name}</h3>
+      <div class="code">DB Code ${d.code} · ${routes.length} DBSR route${routes.length !== 1 ? 's' : ''}</div>
+      <div class="metric-row"><span class="label">Ship + PL</span><span class="val">${s ? fmtNum(s.shipPL) : '—'}</span></div>
+      <div class="metric-row"><span class="label">Ship Ach %</span><span class="val"><span class="pct-pill ${pctClass(s?.achPct)}">${s ? fmtPct(s.achPct) : 'no data'}</span></span></div>
+      <div class="metric-row"><span class="label">IMS Achieved</span><span class="val">${fmtNum(dbImsAch)} / ${fmtNum(dbImsTgt)}</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.min(100, (dbImsTgt ? dbImsAch/dbImsTgt : 0)*100)}%"></div></div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = kpiHtml + `<div class="section-title">Distributors — Tiruvannamalai HQ</div><div class="grid">${cards}</div>`;
+}
+
+// ---------- SHIP ----------
+function renderShip(el) {
+  const src = STORE.salesflash;
+  if (!src) return el.innerHTML = emptyState('Upload the Sales Flash file to populate SHIP (Ship, Pick Val, Ship+PL from the DB Summary sheet, matched on Health Code).');
+  const rows = DISTRIBUTORS.map(d => {
+    const r = src.records.find(x => x.dbCode === d.code);
+    const finalTarget = d.tdr;
+    const trgt105 = finalTarget * 1.05;
+    const shipPL = r?.shipPL || 0;
+    const ach = finalTarget ? shipPL / finalTarget : 0;
+    const btg = trgt105 - shipPL;
+    return `<tr>
+      <td>${d.code}</td><td>${d.name}</td>
+      <td>${fmtNum(d.stc)}</td><td>${fmtNum(finalTarget)}</td><td>${fmtNum(trgt105)}</td>
+      <td>${fmtNum(r?.ship)}</td><td>${fmtNum(r?.pickVal)}</td><td>${fmtNum(shipPL)}</td>
+      <td><span class="pct-pill ${pctClass(ach)}">${fmtPct(ach)}</span></td>
+      <td>${fmtNum(btg)}</td><td>${fmtNum(r?.imsDelta)}</td><td>${fmtNum(r?.pbiIms)}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="section-title">SHIP <span class="hint">source: Sales Flash · DB Summary sheet · matched on Health Code</span></div>
+  ${lookupHelper('map-ship', `Total Bud/Final Target/105% Target come from her DB budget reference (Sep&#39;26 TDR). Ship, Pick Val, Ship+PL, IMS Delta and PBI IMS are pulled straight from the "overall" Total Bud/Ship/Pick Val/Ship+PL/Ach %/BTG/IMS Delta vs LD/PBI IMS block in the Sales Flash DB Summary sheet, matched by <code>Health Code</code> = distributor code. Ach % and BTG are recomputed against the 105% target.`)}
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>DB Code</th><th>Distributor</th><th>Total Bud</th><th>Final Target</th><th>105% TRGT</th>
+    <th>Ship</th><th>Pick Val</th><th>Ship+PL</th><th>Ach %</th><th>BTG</th><th>IMS Δ vs LD</th><th>PBI IMS</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- DB Lines ----------
+function renderDBLines(el) {
+  const src = STORE.ivy;
+  if (!src) return el.innerHTML = emptyState('Upload the Assortment Ivy file to populate DB Lines (DB sheet, matched on DIST_CD).');
+  const rows = DISTRIBUTORS.map(d => {
+    const r = src.dbRecords.find(x => x.dbCode === d.code);
+    return `<tr><td>${d.code}</td><td>${d.name}</td>
+      <td>${fmtNum(r?.mtdUlsn, 0)}</td><td>${fmtNum(r?.ulsnTarget, 0)}</td>
+      <td>${fmtNum(r?.ulsAchNoQty, 0)}</td><td>${fmtNum(r?.ulsnAchQty, 0)}</td>
+      <td><span class="pct-pill ${pctClass(r?.pctUlsnTgtAch)}">${r ? fmtPct(r.pctUlsnTgtAch) : '—'}</span></td>
+      <td>${fmtNum(r?.target, 0)}</td><td>${fmtNum(r?.achNoSoq, 0)}</td><td>${fmtNum(r?.achSoq, 0)}</td>
+      <td><span class="pct-pill ${pctClass(r?.achPctSoq)}">${r ? fmtPct(r.achPctSoq) : '—'}</span></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="section-title">DB Lines <span class="hint">source: Assortment Ivy · DB sheet · matched on DIST_CD</span></div>
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>DB Code</th><th>Distributor</th><th>MTD ULSN</th><th>ULSN Target</th><th>ULS Ach (w/o Qty)</th><th>ULSN Ach (w/ Qty)</th>
+    <th>%ULSN Tgt Ach</th><th>Target</th><th>Ach w/o SOQ</th><th>Ach w/ SOQ</th><th>Ach % w/ SOQ</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- IMS ----------
+function renderIMS(el) {
+  const src = STORE.zone2;
+  if (!src) return el.innerHTML = emptyState('Upload the Zone 2 DB & DBSR IMS file to populate IMS Achieved (DBSR sheet, matched on Route Code).');
+  let rows = '';
+  DISTRIBUTORS.forEach(d => {
+    const routes = DBSR_ROUTES.filter(r => r.dbCode === d.code);
+    if (!routes.length) return;
+    let dbAch = 0, dbTgt = 0;
+    const routeRows = routes.map(route => {
+      const rec = src.records.find(x => x.route === route.route);
+      const achieved = rec?.achieved || 0;
+      const target = IMS_TARGETS[route.route] || 0;
+      const ourTarget = target * 1.10;
+      dbAch += achieved; dbTgt += target;
+      const ach = target ? achieved / target : 0;
+      return `<tr><td>${d.code}</td><td>${d.name}</td><td>${route.route}</td><td>${route.name}</td>
+        <td>${fmtNum(target)}</td><td>${fmtNum(ourTarget)}</td><td>${fmtNum(achieved)}</td>
+        <td><span class="pct-pill ${pctClass(ach)}">${fmtPct(ach)}</span></td>
+        <td>${fmtNum(target - achieved)}</td></tr>`;
+    }).join('');
+    rows += `<tr class="db-group-row"><td colspan="9">${d.name} — Achieved ${fmtNum(dbAch)} / Target ${fmtNum(dbTgt)} (${dbTgt ? fmtPct(dbAch/dbTgt) : '—'})</td></tr>` + routeRows;
+  });
+  el.innerHTML = `<div class="section-title">IMS <span class="hint">source: Zone 2 DTR · DBSR sheet · matched on Route Code</span></div>
+  ${lookupHelper('map-ims', `"Achieved" is the <code>Confirmed</code> column (MTD Achv) from the Zone 2 DBSR sheet. Monthly IMS Target per route is kept as reference data in this dashboard (from her tracker) — update it in <code>data.js</code> when a new month's targets are set. "Our Target" = Target × 1.10, matching her tracker's stretch-target logic.`)}
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>DB Code</th><th>Distributor</th><th>Route</th><th>DBSR</th><th>TDR Target</th><th>Our Target</th><th>Achieved</th><th>Ach %</th><th>BTG</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- SR Lines ----------
+function renderSRLines(el) {
+  const src = STORE.ivy;
+  if (!src) return el.innerHTML = emptyState('Upload the Assortment Ivy file to populate SR Lines (DBSR sheet, matched on Route Code).');
+  const rows = DBSR_ROUTES.map(route => {
+    const r = src.dbsrRecords.find(x => x.route === route.route);
+    const d = DB_BY_CODE[route.dbCode];
+    return `<tr><td>${route.dbCode}</td><td>${d.name}</td><td>${route.route}</td><td>${route.name}</td>
+      <td>${fmtNum(r?.ulsnTarget, 0)}</td><td>${fmtNum(r?.ulsnAchNoQty, 0)}</td><td>${fmtNum(r?.ulsnAchQty, 0)}</td>
+      <td><span class="pct-pill ${pctClass(r?.pctUlsnTgtAch)}">${r ? fmtPct(r.pctUlsnTgtAch) : '—'}</span></td>
+      <td>${fmtNum(r?.target, 0)}</td><td>${fmtNum(r?.achWoSoq, 0)}</td><td>${fmtNum(r?.achSoq, 0)}</td>
+      <td><span class="pct-pill ${pctClass(r?.achPctSoq)}">${r ? fmtPct(r.achPctSoq) : '—'}</span></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="section-title">SR Lines <span class="hint">source: Assortment Ivy · DBSR sheet · matched on Route Code</span></div>
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>DB Code</th><th>Distributor</th><th>Route</th><th>DBSR</th><th>ULSN Target</th><th>ULSN Ach (w/o Qty)</th><th>ULSN Ach (w/ Qty)</th>
+    <th>%ULSN Tgt Ach</th><th>Target</th><th>Ach w/o SOQ</th><th>Ach w/ SOQ</th><th>Ach % w/ SOQ</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- Geo Eco & HHT ----------
+function renderGeoEco(el) {
+  const src = STORE.geoeco;
+  if (!src) return el.innerHTML = emptyState('Upload the Geo Eco & HHT file to populate this tab (DBSR sheet, matched on Distributor Code + Route Code).');
+  const rows = DBSR_ROUTES.map(route => {
+    const r = src.records.find(x => x.route === route.route);
+    const d = DB_BY_CODE[route.dbCode];
+    return `<tr><td>${route.dbCode}</td><td>${d.name}</td><td>${route.route}</td><td>${route.name}</td>
+      <td>${fmtNum(r?.omr, 0)}</td>
+      <td><span class="pct-pill ${pctClass(r?.hitRate)}">${r ? fmtPct(r.hitRate) : '—'}</span></td>
+      <td>${fmtNum(r?.overAllEco, 0)}</td><td>${fmtNum(r?.ecoGe800, 0)}</td>
+      <td><span class="pct-pill ${pctClass(r?.ecoAchPct)}">${r ? fmtPct(r.ecoAchPct) : '—'}</span></td>
+      <td>${fmtNum(r?.daysEarned, 0)}</td>
+      <td><span class="pct-pill ${pctClass(r?.gfBcPct)}">${r ? fmtPct(r.gfBcPct) : '—'}</span></td>
+      <td>${fmtNum(r?.hhtDays, 0)}</td><td>${fmtNum(r?.olVisited, 0)}</td>
+      <td>${fmtNum(r?.gfBcTotal, 0)}</td><td>${fmtNum(r?.olBilled, 0)}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="section-title">Geo Eco &amp; HHT <span class="hint">source: Geo Eco &amp; HHT file · DBSR sheet · matched on Distributor Code + Route Code</span></div>
+  ${lookupHelper('map-geoeco', `Pulled straight from the DBSR sheet's geo-tagging / geo-fence-eco / HHT block. Month-labelled columns (e.g. "Aug MTD Geo Tag Achv") are matched by a stable substring so this keeps working when the file rolls over to a new month's naming.`)}
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>DB Code</th><th>Distributor</th><th>Route</th><th>DBSR</th><th>Geotagged OMR</th><th>Geo Tag Hit Rate</th>
+    <th>Overall MTD Eco</th><th>GF Eco ≥800</th><th>GF Eco Ach %</th><th>Days Earned</th>
+    <th>GF BC %</th><th>HHT Achv Days</th><th>Unique OL GF Visited</th><th>GF BC Total</th><th>OL's Billed</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- Badshah ----------
+function renderBadshah(el) {
+  const src = STORE.badshah;
+  if (!src) return el.innerHTML = emptyState('Upload the Badshah Category Tracker to populate this tab (DBSR Wise sheet, matched on Route Code).');
+  const rows = DBSR_ROUTES.map(route => {
+    const r = src.records.find(x => x.route === route.route);
+    const d = DB_BY_CODE[route.dbCode];
+    return `<tr><td>${route.dbCode}</td><td>${d.name}</td><td>${route.route}</td><td>${route.name}</td>
+      <td>${fmtNum(r?.mortein.target)}</td><td>${fmtNum(r?.mortein.ach)}</td>
+      <td><span class="pct-pill ${pctClass(r?.mortein.pct)}">${r ? fmtPct(r.mortein.pct) : '—'}</span></td>
+      <td>${fmtNum(r?.dkg.target)}</td><td>${fmtNum(r?.dkg.ach)}</td>
+      <td><span class="pct-pill ${pctClass(r?.dkg.pct)}">${r ? fmtPct(r.dkg.pct) : '—'}</span></td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="section-title">Badshah <span class="hint">source: Badshah Category Tracker · DBSR Wise sheet · matched on Route Code</span></div>
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>DB Code</th><th>Distributor</th><th>Route</th><th>DBSR</th>
+    <th>Mortein Target</th><th>Mortein Ach</th><th>Mortein %</th>
+    <th>DKG Target</th><th>DKG Ach</th><th>DKG %</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- Program ----------
+function renderProgram(el) {
+  const src = STORE.program;
+  if (!src) return el.innerHTML = emptyState('Upload the Detail Transaction Report CSV to populate Program (pivoted by Customer Code → Net Amount, matched to New Outlet Code).');
+  const sorted = [...src.records].sort((a, b) => (b.target || 0) - (a.target || 0));
+  const totalTarget = sorted.reduce((s, o) => s + (o.target || 0), 0);
+  const totalAch = sorted.reduce((s, o) => s + (o.achievement || 0), 0);
+  const rows = sorted.map(o => `<tr>
+    <td>${o.dbName}</td><td>${o.outletCode}</td><td>${o.outletName}</td><td>${o.routeName}</td>
+    <td>${fmtNum(o.target)}</td><td>${fmtNum(o.achievement)}</td>
+    <td><span class="pct-pill ${pctClass(o.achPct)}">${fmtPct(o.achPct)}</span></td>
+    <td>${fmtNum(o.btg)}</td>
+  </tr>`).join('');
+  el.innerHTML = `<div class="section-title">Program <span class="hint">source: Detail Transaction Report · pivoted on Customer Code → Net Amount</span></div>
+  ${lookupHelper('map-program', `The Detail Transaction Report is pivoted by <code>Customer Code</code>, summing <code>Net Amount</code>. That total is matched to <code>New Outlet Code</code> in the Program outlet master list (seeded from her tracker's Program sheet — 54 outlets across her 5 program distributors) and written into Achievement.`)}
+  <div class="kpi-row" style="margin-bottom:14px;"><div class="kpi pink"><div class="num">${fmtNum(totalAch)}</div><div class="lbl">Achievement</div></div>
+  <div class="kpi"><div class="num">${totalTarget ? fmtPct(totalAch/totalTarget) : '—'}</div><div class="lbl">vs ${fmtNum(totalTarget)} Target</div></div></div>
+  <div class="tbl-wrap"><table><thead><tr>
+    <th>Distributor</th><th>Outlet Code</th><th>Outlet Name</th><th>DBSR</th><th>Target</th><th>Achievement</th><th>Ach %</th><th>BTG</th>
+  </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- Unvisited OL ----------
+function renderUnvisited(el) {
+  const src = STORE.unvisited;
+  if (!src) return el.innerHTML = emptyState("Upload the Unvisited OL's Tracker to populate this tab (OL's Base sheet, matched on Distributor_Code).");
+  const byRoute = {};
+  let totalVisited = 0, totalUnvisited = 0;
+  src.records.forEach(r => {
+    const key = r.dbsrName || 'Unassigned';
+    byRoute[key] = byRoute[key] || { dbName: r.dbName, total: 0, visited: 0, unvisited: 0, unbilled: 0 };
+    byRoute[key].total++;
+    const visited = r.visitStatus && String(r.visitStatus).toLowerCase() === 'visited';
+    if (visited) { byRoute[key].visited++; totalVisited++; }
+    else { byRoute[key].unvisited++; totalUnvisited++; }
+    if (r.billStatus && String(r.billStatus).toLowerCase().includes('unbill')) byRoute[key].unbilled++;
+  });
+  const totalOutlets = totalVisited + totalUnvisited;
+  const kpiHtml = `<div class="kpi-row" style="margin-bottom:14px;">
+    <div class="kpi"><div class="num">${totalOutlets}</div><div class="lbl">Base Outlets Tracked</div></div>
+    <div class="kpi pink"><div class="num">${totalVisited}</div><div class="lbl">Visit Completed</div></div>
+    <div class="kpi"><div class="num">${totalUnvisited}</div><div class="lbl">Still Unvisited</div></div>
+    <div class="kpi"><div class="num">${totalOutlets ? fmtPct(totalVisited/totalOutlets) : '—'}</div><div class="lbl">Visit Completion %</div></div>
+  </div>`;
+  const rows = Object.entries(byRoute).map(([dbsr, v]) => `<tr>
+    <td>${v.dbName}</td><td>${dbsr}</td><td>${v.total}</td>
+    <td>${v.visited}</td>
+    <td><span class="pct-pill ${pctClass(v.total ? v.visited/v.total : 0)}">${v.total ? fmtPct(v.visited/v.total) : '—'}</span></td>
+    <td>${v.unvisited}</td><td>${v.unbilled}</td>
+  </tr>`).join('');
+  el.innerHTML = `<div class="section-title">Unvisited OL <span class="hint">source: Unvisited OL's Tracker · OL's Base sheet · matched on Distributor_Code</span></div>
+  ${lookupHelper('map-unvisited', `This is the base list of outlets that were historically hard to visit. Each row's most recent "&lt;Month&gt; Visit Status" column (found by matching whichever month-labelled visit-status column sits furthest right in the sheet) tells us if that outlet has now been visited. "Still Unbilled" checks the matching "&lt;Month&gt; GF Billing Status" column.`)}
+  ${kpiHtml}
+  <div class="tbl-wrap"><table><thead><tr><th>Distributor</th><th>DBSR</th><th>Base Outlets</th><th>Visit Completed</th><th>Visit %</th><th>Still Unvisited</th><th>Still Unbilled</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------
+function renderAll() {
+  renderSourceList();
+  renderTabs();
+  renderContent();
+}
+
+function wireUpload() {
+  const zone = document.getElementById('dropZone');
+  const input = document.getElementById('fileInput');
+  zone.addEventListener('click', () => input.click());
+  input.addEventListener('change', e => { handleFiles(e.target.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.remove('drag'); }));
+  zone.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+}
+
+(async function init() {
+  await loadStore();
+  wireUpload();
+  renderAll();
+})();
+
+</script>
+</body>
+</html>
