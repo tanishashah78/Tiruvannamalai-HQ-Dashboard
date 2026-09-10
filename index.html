@@ -149,37 +149,15 @@
   .kpi .lbl{font-size:11.5px;color:#C9C6D6;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
   .kpi.pink{background:var(--pink);}
 
-  /* ---------- GitHub sync panel ---------- */
-  .sync-bar{margin-bottom:18px;}
-  .sync-toggle{
-    background:var(--card);border:1px solid var(--line);border-radius:10px;
-    padding:8px 14px;font-size:12.5px;font-weight:600;color:var(--slate-dark);
-    cursor:pointer;font-family:inherit;
+  /* ---------- Publish note ---------- */
+  .publish-note{
+    background:var(--pink-tint);border:1px solid #F3C9E0;border-radius:12px;
+    padding:12px 16px;font-size:12.5px;color:var(--pink-dark);margin-bottom:18px;line-height:1.5;
   }
-  .sync-toggle .ok{color:var(--good);}
-  .sync-toggle .bad{color:var(--bad);}
-  .sync-panel{
-    display:none;background:var(--card);border:1px solid var(--line);border-radius:14px;
-    padding:18px 20px;margin-top:10px;max-width:480px;
+  .link-btn{
+    background:none;border:none;padding:0;font:inherit;color:var(--pink-dark);
+    font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer;
   }
-  .sync-panel.show{display:block;}
-  .sync-panel p{font-size:12.5px;color:var(--slate-dark);margin:0 0 12px;line-height:1.5;}
-  .sync-panel label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--ink);margin-bottom:10px;}
-  .sync-panel input{
-    font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);
-    border-radius:8px;background:var(--paper);color:var(--ink);
-  }
-  .sync-hint{background:var(--pink-tint);padding:10px 12px;border-radius:10px;font-size:11.5px;}
-  .sync-actions{display:flex;gap:8px;margin-top:6px;}
-  .btn-primary, .btn-ghost{
-    font-family:inherit;font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:8px;
-    cursor:pointer;border:none;
-  }
-  .btn-primary{background:var(--pink);color:#fff;}
-  .btn-ghost{background:none;border:1px solid var(--line);color:var(--slate-dark);}
-  .sync-msg{font-size:12px;margin-top:10px;}
-  .sync-msg.ok{color:var(--good);}
-  .sync-msg.bad{color:var(--bad);}
 </style>
 </head>
 <body>
@@ -204,21 +182,8 @@
 
   <div class="source-list" id="sourceList"></div>
 
-  <div class="sync-bar" id="syncBar">
-    <button class="sync-toggle" id="syncToggleBtn">⚙ GitHub sync — <span id="syncStatusLabel">not set up</span></button>
-    <div class="sync-panel" id="syncPanel">
-      <p>Saves every upload straight to a <code>data.json</code> file in your GitHub repo, so the numbers update for anyone who opens the page — not just this browser.</p>
-      <label>Repo (owner/name)<input id="cfgRepo" placeholder="tanisha/tn-east-tracker"></label>
-      <label>Branch<input id="cfgBranch" placeholder="main" value="main"></label>
-      <label>Data file path<input id="cfgPath" placeholder="data/tracker-data.json" value="data/tracker-data.json"></label>
-      <label>Personal Access Token<input id="cfgToken" type="password" placeholder="github_pat_..."></label>
-      <p class="sync-hint">Create a <b>fine-grained</b> token at github.com → Settings → Developer settings → Personal access tokens, scoped to only this repo, with <b>Contents: Read and write</b> permission. It's stored only in this browser's local storage — never put it in the repo itself.</p>
-      <div class="sync-actions">
-        <button id="cfgSave" class="btn-primary">Save &amp; Connect</button>
-        <button id="cfgClear" class="btn-ghost">Disconnect</button>
-      </div>
-      <div id="cfgMsg" class="sync-msg"></div>
-    </div>
+  <div class="publish-note">
+    <span>Every upload downloads a fresh copy of this dashboard with the new numbers baked in. <button id="manualDownloadBtn" class="link-btn">Download current copy</button> — then drag it into your GitHub repo to replace the old file and publish.</span>
   </div>
 
   <nav class="tabs" id="tabs"></nav>
@@ -226,6 +191,8 @@
 
 </div>
 <div class="toast" id="toast"></div>
+
+<script>window.__SEED_STORE__ = /*SEED_START*/{}/*SEED_END*/;</script>
 
 <script>
 // Reference / seed data — extracted from Tanisha's own tracker.
@@ -737,6 +704,13 @@ function showToast(msg) {
 const LS_PREFIX = 'tne-tracker:';
 
 function loadStore() {
+  // Start from whatever data was baked into this HTML file the last
+  // time it was downloaded and published (see __SEED_STORE__ below).
+  if (window.__SEED_STORE__ && typeof window.__SEED_STORE__ === 'object') {
+    STORE = Object.assign({}, window.__SEED_STORE__);
+  }
+  // Then layer this browser's own local cache on top, in case files
+  // were uploaded here since the last time a copy was downloaded.
   for (const key of SOURCE_KEYS) {
     try {
       const raw = localStorage.getItem(LS_PREFIX + key);
@@ -831,10 +805,43 @@ async function handleFiles(fileList) {
   for (const file of Array.from(fileList)) {
     await processFile(file);
   }
-  if (ghConfig && ghConfig.repo && ghConfig.token) {
-    const result = await pushRemoteData();
-    if (result.ok) showToast('Saved to GitHub — live for anyone who opens the page.');
-    else showToast('Saved to this browser, but GitHub sync failed: ' + result.reason);
+  downloadUpdatedHTML();
+}
+
+// ---------------------------------------------------------------------
+// Self-regenerating file: this page's own pristine HTML was captured
+// into PAGE_TEMPLATE at load time (before any data got rendered into
+// it). To "write" the new values into the file, we take that template
+// and swap in the current STORE as __SEED_STORE__, between two comment
+// markers that survive repeated regenerate cycles. The result downloads
+// as a normal .html file — drag it into GitHub to replace the old one
+// and the published page shows today's numbers immediately on load,
+// with no server, API, or token involved.
+// ---------------------------------------------------------------------
+const PAGE_TEMPLATE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+const SEED_MARKER = /\/\*SEED_START\*\/[\s\S]*?\/\*SEED_END\*\//;
+
+function buildUpdatedHTML() {
+  const json = JSON.stringify(STORE);
+  return PAGE_TEMPLATE.replace(SEED_MARKER, '/*SEED_START*/' + json + '/*SEED_END*/');
+}
+
+function downloadUpdatedHTML() {
+  try {
+    const html = buildUpdatedHTML();
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'TN_East_DBSR_Tracker.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast('Updated dashboard downloaded — replace the file in GitHub to publish it.');
+  } catch (e) {
+    console.error('Could not generate updated HTML', e);
+    showToast('Could not generate the updated file — your data is still saved in this browser though.');
   }
 }
 
@@ -1142,152 +1149,6 @@ function renderUnvisited(el) {
 }
 
 // ---------------------------------------------------------------------
-// GitHub sync — commits STORE as a single JSON file to a repo via the
-// GitHub Contents API, so data updates for anyone who opens the page,
-// not just this browser. Falls back silently to localStorage-only if
-// not configured.
-// ---------------------------------------------------------------------
-const GH_CFG_KEY = LS_PREFIX + 'github-config';
-let ghConfig = null; // { repo, branch, path, token }
-let ghFileSha = null; // cached SHA of the remote file, needed to update it
-
-function loadGithubConfig() {
-  try {
-    const raw = localStorage.getItem(GH_CFG_KEY);
-    ghConfig = raw ? JSON.parse(raw) : null;
-  } catch (e) { ghConfig = null; }
-}
-function saveGithubConfig(cfg) {
-  ghConfig = cfg;
-  localStorage.setItem(GH_CFG_KEY, JSON.stringify(cfg));
-}
-function clearGithubConfig() {
-  ghConfig = null;
-  ghFileSha = null;
-  localStorage.removeItem(GH_CFG_KEY);
-}
-
-function utf8ToBase64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
-}
-function base64ToUtf8(b64) {
-  return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
-}
-
-function ghApiUrl(cfg) {
-  return `https://api.github.com/repos/${cfg.repo}/contents/${cfg.path}`;
-}
-
-async function fetchRemoteData() {
-  if (!ghConfig || !ghConfig.repo || !ghConfig.path) return false;
-  try {
-    const res = await fetch(`${ghApiUrl(ghConfig)}?ref=${encodeURIComponent(ghConfig.branch || 'main')}`, {
-      headers: ghConfig.token ? { Authorization: `Bearer ${ghConfig.token}`, Accept: 'application/vnd.github+json' } : { Accept: 'application/vnd.github+json' },
-    });
-    if (res.status === 404) { ghFileSha = null; return true; } // file doesn't exist yet — fine
-    if (!res.ok) throw new Error(`GitHub returned ${res.status}`);
-    const json = await res.json();
-    ghFileSha = json.sha;
-    const remote = JSON.parse(base64ToUtf8(json.content));
-    STORE = Object.assign({}, STORE, remote);
-    return true;
-  } catch (e) {
-    console.error('GitHub fetch failed', e);
-    return false;
-  }
-}
-
-async function pushRemoteData() {
-  if (!ghConfig || !ghConfig.repo || !ghConfig.path || !ghConfig.token) return { ok: false, reason: 'not configured' };
-  setSyncStatus('syncing');
-  try {
-    const body = {
-      message: `Update tracker data — ${new Date().toISOString()}`,
-      content: utf8ToBase64(JSON.stringify(STORE, null, 0)),
-      branch: ghConfig.branch || 'main',
-    };
-    if (ghFileSha) body.sha = ghFileSha;
-    const res = await fetch(ghApiUrl(ghConfig), {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${ghConfig.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`GitHub ${res.status}: ${errText.slice(0, 200)}`);
-    }
-    const json = await res.json();
-    ghFileSha = json.content.sha;
-    setSyncStatus('ok');
-    return { ok: true };
-  } catch (e) {
-    console.error('GitHub push failed', e);
-    setSyncStatus('bad');
-    return { ok: false, reason: e.message };
-  }
-}
-
-function setSyncStatus(state) {
-  const label = document.getElementById('syncStatusLabel');
-  if (!label) return;
-  if (!ghConfig || !ghConfig.repo) { label.textContent = 'not set up'; label.className = ''; return; }
-  if (state === 'syncing') { label.textContent = 'syncing…'; label.className = ''; }
-  else if (state === 'ok') { label.textContent = 'synced ✓'; label.className = 'ok'; }
-  else if (state === 'bad') { label.textContent = 'sync failed ✗'; label.className = 'bad'; }
-  else { label.textContent = 'connected'; label.className = 'ok'; }
-}
-
-function wireSyncPanel() {
-  const toggleBtn = document.getElementById('syncToggleBtn');
-  const panel = document.getElementById('syncPanel');
-  toggleBtn.addEventListener('click', () => panel.classList.toggle('show'));
-
-  if (ghConfig) {
-    document.getElementById('cfgRepo').value = ghConfig.repo || '';
-    document.getElementById('cfgBranch').value = ghConfig.branch || 'main';
-    document.getElementById('cfgPath').value = ghConfig.path || 'data/tracker-data.json';
-    document.getElementById('cfgToken').value = ghConfig.token || '';
-  }
-  setSyncStatus();
-
-  document.getElementById('cfgSave').addEventListener('click', async () => {
-    const cfg = {
-      repo: document.getElementById('cfgRepo').value.trim(),
-      branch: document.getElementById('cfgBranch').value.trim() || 'main',
-      path: document.getElementById('cfgPath').value.trim() || 'data/tracker-data.json',
-      token: document.getElementById('cfgToken').value.trim(),
-    };
-    const msg = document.getElementById('cfgMsg');
-    if (!cfg.repo || !cfg.token) {
-      msg.textContent = 'Repo and token are both required.'; msg.className = 'sync-msg bad'; return;
-    }
-    saveGithubConfig(cfg);
-    msg.textContent = 'Connecting…'; msg.className = 'sync-msg';
-    const gotRemote = await fetchRemoteData();
-    if (gotRemote) {
-      const pushResult = await pushRemoteData();
-      if (pushResult.ok) {
-        msg.textContent = 'Connected — data will sync on every upload.'; msg.className = 'sync-msg ok';
-      } else {
-        msg.textContent = 'Saved locally, but the test write failed: ' + pushResult.reason; msg.className = 'sync-msg bad';
-      }
-    } else {
-      msg.textContent = 'Could not reach that repo — check the repo name, branch and token.'; msg.className = 'sync-msg bad';
-    }
-    renderAll();
-  });
-
-  document.getElementById('cfgClear').addEventListener('click', () => {
-    clearGithubConfig();
-    document.getElementById('cfgRepo').value = '';
-    document.getElementById('cfgToken').value = '';
-    document.getElementById('cfgMsg').textContent = 'Disconnected. Data will only save to this browser.';
-    document.getElementById('cfgMsg').className = 'sync-msg';
-    setSyncStatus();
-  });
-}
-
-// ---------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------
 function renderAll() {
@@ -1304,19 +1165,15 @@ function wireUpload() {
   ['dragenter', 'dragover'].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add('drag'); }));
   ['dragleave', 'drop'].forEach(evt => zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.remove('drag'); }));
   zone.addEventListener('drop', e => { if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+
+  const manualBtn = document.getElementById('manualDownloadBtn');
+  if (manualBtn) manualBtn.addEventListener('click', downloadUpdatedHTML);
 }
 
-(async function init() {
+(function init() {
   loadStore();
-  loadGithubConfig();
   wireUpload();
-  wireSyncPanel();
   renderAll();
-  if (ghConfig && ghConfig.repo) {
-    const gotRemote = await fetchRemoteData();
-    if (gotRemote) { setSyncStatus('connected'); renderAll(); }
-    else setSyncStatus('bad');
-  }
 })();
 
 </script>
